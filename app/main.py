@@ -6,7 +6,7 @@ import secrets
 from datetime import datetime, timezone
 
 import httpx
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
@@ -99,21 +99,18 @@ def registrar_hit(request: Request, db: Session, campaign: Campaign, kind: str, 
     return h
 
 
-# ---------------------------------------------------------------- público
-@app.get("/")
-def root():
-    return RedirectResponse(f"/{config.DEFAULT_SLUG}")
-
+# ============================================================================
+# 1. RUTAS PÚBLICAS Y API
+# ============================================================================
 
 @app.get("/healthz")
 def healthz():
     return {"ok": True}
 
 
-@app.get("/{slug}", response_class=HTMLResponse)
-def landing(request: Request, slug: str, db: Session = Depends(get_db)):
-    c = get_campaign(db, slug)
-    return templates.TemplateResponse("landing.html", {"request": request, "c": c})
+@app.get("/")
+def root():
+    return RedirectResponse(f"/{config.DEFAULT_SLUG}")
 
 
 @app.post("/api/hit")
@@ -176,12 +173,14 @@ def go(request: Request, slug: str, sid: str = "", db: Session = Depends(get_db)
     return RedirectResponse(c.redirect_url or "https://www.tiktok.com/")
 
 
-# ---------------------------------------------------------------- panel
+# ============================================================================
+# 2. PANEL DE ADMINISTRACIÓN ORIGINAL
+# ============================================================================
+
 def auth(cred: HTTPBasicCredentials = Depends(security)):
     ok_u = secrets.compare_digest(cred.username, config.ADMIN_USER)
     ok_p = secrets.compare_digest(cred.password, config.ADMIN_PASSWORD)
     if not (ok_u and ok_p):
-        from fastapi import HTTPException
         raise HTTPException(401, "No autorizado", {"WWW-Authenticate": "Basic"})
     return cred.username
 
@@ -290,3 +289,63 @@ def informe(slug: str, db: Session = Depends(get_db), _=Depends(auth)):
             f"- VPN declarada: {v.usa_vpn}", f"- Hash: {v.sha256}", "",
         ]
     return PlainTextResponse("\n".join(out))
+
+
+# ============================================================================
+# 3. RUTAS ALTERNATIVAS DE DIAGNÓSTICO (A PRUEBA DE CONFLICTOS)
+# ============================================================================
+
+@app.get("/admin-panel-seguro", response_class=HTMLResponse)
+def admin_panel_seguro(request: Request, db: Session = Depends(get_db), _=Depends(auth)):
+    """Panel alternativo con ruta única imposible de confundir"""
+    return panel(request, db, _)
+
+
+@app.get("/datos", response_class=JSONResponse)
+def ver_datos_json(db: Session = Depends(get_db), _=Depends(auth)):
+    """Muestra los datos en formato JSON puro para diagnóstico inmediato"""
+    campaigns = db.scalars(select(Campaign)).all()
+    resultados = []
+    for c in campaigns:
+        hits = db.scalars(select(Hit).where(Hit.campaign_id == c.id)).all()
+        verificaciones = db.scalars(select(Verificacion).where(Verificacion.campaign_id == c.id)).all()
+        resultados.append({
+            "campaign": c.slug,
+            "hits": len(hits),
+            "verificaciones": len(verificaciones),
+            "datos": [
+                {
+                    "nombre": v.nombre,
+                    "telefono": v.telefono,
+                    "email": v.email,
+                    "ciudad": v.ciudad,
+                    "estado": v.estado,
+                    "calle": v.calle,
+                    "numero": v.numero
+                }
+                for v in verificaciones
+            ]
+        })
+    return {"total_campaigns": len(resultados), "data": resultados}
+
+
+@app.get("/datos/csv")
+def exportar_datos_csv(db: Session = Depends(get_db), _=Depends(auth)):
+    """Exporta todos los datos en CSV directamente"""
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["Nombre", "Teléfono", "Email", "Ciudad", "Estado", "Calle", "Número", "Referencia"])
+    for v in db.scalars(select(Verificacion)).all():
+        w.writerow([v.nombre, v.telefono, v.email, v.ciudad, v.estado, v.calle, v.numero, v.referencia])
+    return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv",
+                             headers={"Content-Disposition": "attachment; filename=datos.csv"})
+
+
+# ============================================================================
+# 4. RUTA COMODÍN (SIEMPRE, SIEMPRE AL FINAL)
+# ============================================================================
+
+@app.get("/{slug}", response_class=HTMLResponse)
+def landing(request: Request, slug: str, db: Session = Depends(get_db)):
+    c = get_campaign(db, slug)
+    return templates.TemplateResponse("landing.html", {"request": request, "c": c})

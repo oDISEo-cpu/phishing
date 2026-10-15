@@ -38,4 +38,4 @@ for i, (n, t, e, ca, nu, ref, ci, es) in enumerate(ficticios):
                         referencia=ref, dispositivo_habitual="Android", usa_vpn="No",
                         dispositivos_abiertos="1"))
 db.commit()
-print("Seed listo. Panel en http://localhost:8000/panel")
+print("Seed listo. Panel en http://localhost:8000/admin-panel-seguro")
